@@ -106,6 +106,11 @@ function VoiceAgentInner({ agentId }: { agentId: string }) {
     onMuteStateChange(isMuted) {
       setEntries((prev) => [...prev, { role: 'data', text: `MIC → ${isMuted ? 'muted' : 'unmuted'}`, ts: Date.now() }]);
     },
+    onDataMessage(data: any) {
+      const ts = Date.now();
+      console.log('response.data', data);
+      upsertStreamingEntry({ role: 'tool_call', text: data.content.message ?? '' });
+    },
     onMessage: (data: any) => {
       const ts = Date.now();
       switch (data?.type) {

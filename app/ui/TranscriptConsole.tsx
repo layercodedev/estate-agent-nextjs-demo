@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useRef } from 'react';
 
@@ -20,9 +20,7 @@ export default function TranscriptConsole({ entries }: { entries: Entry[] }) {
 
   return (
     <div ref={containerRef} className="h-[56vh] overflow-y-auto bg-neutral-950/40">
-      <div className="sticky top-0 z-10 bg-neutral-950/70 backdrop-blur-sm border-b border-neutral-800 px-4 py-2 text-xs text-neutral-400 tracking-wider uppercase">
-        Events
-      </div>
+      <div className="sticky top-0 z-10 bg-neutral-950/70 backdrop-blur-sm border-b border-neutral-800 px-4 py-2 text-xs text-neutral-400 tracking-wider uppercase">Events</div>
       <ul className="divide-y divide-neutral-800">
         {entries.map((e, i) => (
           <li key={i} className="px-4 py-3 md:grid md:grid-cols-12 items-start">
@@ -36,7 +34,9 @@ export default function TranscriptConsole({ entries }: { entries: Entry[] }) {
                 {e.role}
               </span>
             </div>
-            <div className={`md:col-span-8 text-sm leading-relaxed text-neutral-200 whitespace-pre-wrap break-words mt-1 md:mt-0 ${e.role === 'data' ? 'font-mono text-[12px] text-neutral-300' : ''}`}>
+            <div
+              className={`md:col-span-8 text-sm leading-relaxed text-neutral-200 whitespace-pre-wrap break-words mt-1 md:mt-0 ${e.role === 'tool_call' ? 'font-mono text-[12px] text-neutral-300' : ''}`}
+            >
               {e.text}
               {e.turnId ? <div className="mt-1 text-[11px] text-neutral-500">turn_id: {e.turnId}</div> : null}
             </div>

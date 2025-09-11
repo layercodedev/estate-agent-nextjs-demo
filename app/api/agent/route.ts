@@ -104,6 +104,7 @@ export const POST = async (request: Request) => {
   if (type === 'session.start') {
     return streamResponse(requestBody, async ({ stream }) => {
       stream.tts(WELCOME_MESSAGE);
+      // stream.data({ message: `test data msg` });
       messages.push({ role: 'assistant', content: WELCOME_MESSAGE });
       sessionMessages[session_id] = messages;
       stream.end();
@@ -127,12 +128,12 @@ export const POST = async (request: Request) => {
         get_units,
         book_appointment
       },
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(10),
       onStepFinish({ text, toolCalls, toolResults, finishReason, usage }) {
         // Sent tool call logs to the frontned for debugging
         toolResults.entries().forEach(([toolName, result]) => {
           const resultPretty = JSON.stringify(result, null, 2);
-          stream.data({ message: `Tool call ${toolName} result:\n${resultPretty}` });
+          stream.data({ message: `Tool call result:\n${resultPretty}` });
         });
       },
       onFinish: async ({ text }) => {

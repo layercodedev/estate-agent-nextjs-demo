@@ -24,4 +24,8 @@ pnpm dev
 bun dev
 ```
 
+So that Layercode can communicate with this local server, you will need to setup a tunnel. See [https://docs.layercode.com/how-tos/tunnelling](https://docs.layercode.com/how-tos/tunnelling) for how to setup a free Cloudflare tunnel (no signup required). Remember that every time you start a new tunnel, you'll need to update your Agent's webhook URL in the Layercode dashboard to point to your tunnel URL.
+
+```bash
+
 Open [http://localhost:3000](http://localhost:3000) with your browser and chat with your voice agent!

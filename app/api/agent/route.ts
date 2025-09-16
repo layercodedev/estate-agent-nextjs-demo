@@ -6,10 +6,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { streamText, generateObject, ModelMessage, tool, stepCountIs } from 'ai';
 import { streamResponse, verifySignature } from '@layercode/node-server-sdk';
 import { WELCOME_MESSAGE, SYSTEM_PROMPT } from '@/app/prompt';
+import { prettyPrintMsgs } from '@/app/utils/msgs';
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 const gemini = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY! });
-type MessageWithTurnId = ModelMessage & { turn_id?: string };
+export type MessageWithTurnId = ModelMessage & { turn_id?: string };
 const conversationMessages = {} as Record<string, MessageWithTurnId[]>;
 type WebhookRequest = {
   conversation_id: string;
@@ -94,55 +95,6 @@ export const book_appointment = tool({
   }
 });
 
-const prettyPrintMsgs = (msgs: MessageWithTurnId[]) => {
-  // Create a transformed copy of messages where arrays of TextPart are concatenated into strings.
-  const transformed = msgs.map((msg) => {
-    const copy: any = { ...msg };
-    const content = (msg as any).content;
-
-    if (Array.isArray(content)) {
-      // Collect text parts
-      const textParts = content
-        .filter((p) => p && (p.type === 'text' || (p as any).type === 'text'))
-        .map((p) => (p as any).text)
-        .filter((t) => typeof t === 'string');
-
-      // If the array contains only text parts, replace with single concatenated string
-      if (textParts.length > 0 && content.every((p) => p && (p.type === 'text' || (p as any).type === 'text'))) {
-        copy.content = textParts.join('');
-      } else if (textParts.length > 0) {
-        // If mixed parts, replace contiguous text parts with concatenated strings while keeping non-text parts
-        const newContent: any[] = [];
-        let buffer = '';
-
-        for (const part of content) {
-          if (part && (part.type === 'text' || (part as any).type === 'text')) {
-            buffer += (part as any).text || '';
-          } else {
-            if (buffer) {
-              newContent.push(buffer);
-              buffer = '';
-            }
-            newContent.push(part);
-          }
-        }
-        if (buffer) newContent.push(buffer);
-        copy.content = newContent;
-      } else {
-        // No text parts found; leave content as-is
-        copy.content = content;
-      }
-    } else {
-      // content is not an array (string or other) — leave as-is
-      copy.content = content;
-    }
-
-    return copy;
-  });
-
-  return JSON.stringify(transformed, null, 2);
-};
-
 export const POST = async (request: Request) => {
   // Verify the request is from Layercode
   const requestBody = await request.json();
@@ -154,7 +106,7 @@ export const POST = async (request: Request) => {
     secret
   });
   // if (!isValid) return new Response('Unauthorized', { status: 401 });
-
+  console.log('requestBody', requestBody);
   const { conversation_id, text: userText, turn_id, type, interruption_context } = requestBody as WebhookRequest;
 
   // Store system message if this is a new conversation
@@ -164,8 +116,9 @@ export const POST = async (request: Request) => {
 
   // Immediately store user msg
   conversationMessages[conversation_id].push({ role: 'user', turn_id, content: userText });
-  console.log('--- stored user msg ---');
-  console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
+  console.log('--- history at start of response ---');
+  prettyPrintMsgs(conversationMessages[conversation_id]);
+  console.log({ role: 'user', turn_id, content: userText });
 
   switch (type) {
     case 'session.update':
@@ -178,10 +131,12 @@ export const POST = async (request: Request) => {
         // stream.data({ message: `test data msg` });
         conversationMessages[conversation_id].push({ role: 'assistant', turn_id, content: WELCOME_MESSAGE });
         console.log('--- session.start received ---');
-        console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
+        prettyPrintMsgs(conversationMessages[conversation_id]);
         stream.end();
       });
     case 'message':
+      // Immediately store placeholder assistant msg in history (so that if the assistant response is interrupted, we still have a coherent history)
+      conversationMessages[conversation_id].push({ role: 'assistant', turn_id, content: '' });
       // If webhook includes interruption context, it means our previous assistant response was interrupted mid-generation or mid-being-spoken to user. So we update the matching assistant message with ammended text.
       if (interruption_context?.previous_turn_interrupted) {
         // Search backward through the conversation history to find the latest user message with the matching turn_id and update or append the interrupted assistant response message
@@ -190,13 +145,13 @@ export const POST = async (request: Request) => {
         const matchingUserMsg = conversationMessages[conversation_id].findLast((m) => m.role === 'user' && m.turn_id === interruption_context.assistant_turn_id);
         if (matchingUserMsg) {
           if (matchingAssistantMsg) {
+            matchingAssistantMsg.content = interruption_context.text_heard;
+            console.log('--- updating assisant msg with interruption_context.text_heard ---');
+          } else {
             conversationMessages[conversation_id].push({ role: 'assistant', turn_id, content: interruption_context.text_heard });
             console.log('--- added missing assistant msg ---');
-            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
-          } else {
-            console.log('--- updating assisant msg with interruption_context.text_heard ---');
-            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
           }
+          prettyPrintMsgs(conversationMessages[conversation_id]);
         } else {
           console.warn(`Could not find matching user msg with turn_id ${interruption_context.assistant_turn_id} to update with interrupted assistant response`);
         }
@@ -228,9 +183,18 @@ export const POST = async (request: Request) => {
             // Search backward through the conversation history to find the latest assistant message with the matching turn_id and update it with the final text
             console.log('--- onFinish response.messages ---');
             console.log(response.messages);
-            conversationMessages[conversation_id].push(...response.messages);
-            console.log('--- onFinish final message history ---');
-            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
+            // First remove the placeholder assistant message with the cur
+            const idx = conversationMessages[conversation_id].findLastIndex((m) => m.role === 'assistant' && m.turn_id === turn_id);
+            if (idx !== -1) {
+              conversationMessages[conversation_id].splice(idx, 1);
+              console.log('--- removed placeholder assistant msg before updating with full response.messages ---');
+            } else {
+              console.error('--- could not find matching assistant msg to update ---');
+            }
+            // Now append the full assistant response messages from the response to the history
+            conversationMessages[conversation_id].push(...response.messages.map((m) => ({ ...m, turn_id })));
+            console.log('--- final message history ---');
+            prettyPrintMsgs(conversationMessages[conversation_id]);
             stream.end();
           }
         });

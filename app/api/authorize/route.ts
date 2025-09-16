@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 export const POST = async (request: Request) => {
-  // const endpoint = 'https://api-staging.layercode.com/v1/agents/web/authorize_session';
-  const endpoint = 'http://api.localhost:8888/v1/agents/web/authorize_session';
+  const endpoint = 'https://api.layercode.com/v1/agents/web/authorize_session';
   const apiKey = process.env.LAYERCODE_API_KEY;
   if (!apiKey) throw new Error('LAYERCODE_API_KEY is not set.');
 

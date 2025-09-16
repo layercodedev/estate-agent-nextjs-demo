@@ -102,8 +102,6 @@ function VoiceAgentInner({ agentId }: { agentId: string }) {
   const { userAudioAmplitude, agentAudioAmplitude, status, mute, unmute, isMuted } = useLayercodeAgent({
     agentId,
     authorizeSessionEndpoint: '/api/authorize',
-    // _websocketUrl: 'wss://api-staging.layercode.com/v1/agents/web/websocket',
-    _websocketUrl: 'ws://api.localhost:8888/v1/agents/web/websocket',
     onMuteStateChange(isMuted) {
       setEntries((prev) => [...prev, { role: 'data', text: `MIC → ${isMuted ? 'muted' : 'unmuted'}`, ts: Date.now() }]);
     },

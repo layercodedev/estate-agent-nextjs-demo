@@ -94,6 +94,55 @@ export const book_appointment = tool({
   }
 });
 
+const prettyPrintMsgs = (msgs: MessageWithTurnId[]) => {
+  // Create a transformed copy of messages where arrays of TextPart are concatenated into strings.
+  const transformed = msgs.map((msg) => {
+    const copy: any = { ...msg };
+    const content = (msg as any).content;
+
+    if (Array.isArray(content)) {
+      // Collect text parts
+      const textParts = content
+        .filter((p) => p && (p.type === 'text' || (p as any).type === 'text'))
+        .map((p) => (p as any).text)
+        .filter((t) => typeof t === 'string');
+
+      // If the array contains only text parts, replace with single concatenated string
+      if (textParts.length > 0 && content.every((p) => p && (p.type === 'text' || (p as any).type === 'text'))) {
+        copy.content = textParts.join('');
+      } else if (textParts.length > 0) {
+        // If mixed parts, replace contiguous text parts with concatenated strings while keeping non-text parts
+        const newContent: any[] = [];
+        let buffer = '';
+
+        for (const part of content) {
+          if (part && (part.type === 'text' || (part as any).type === 'text')) {
+            buffer += (part as any).text || '';
+          } else {
+            if (buffer) {
+              newContent.push(buffer);
+              buffer = '';
+            }
+            newContent.push(part);
+          }
+        }
+        if (buffer) newContent.push(buffer);
+        copy.content = newContent;
+      } else {
+        // No text parts found; leave content as-is
+        copy.content = content;
+      }
+    } else {
+      // content is not an array (string or other) — leave as-is
+      copy.content = content;
+    }
+
+    return copy;
+  });
+
+  return JSON.stringify(transformed, null, 2);
+};
+
 export const POST = async (request: Request) => {
   // Verify the request is from Layercode
   const requestBody = await request.json();
@@ -114,8 +163,9 @@ export const POST = async (request: Request) => {
   }
 
   // Immediately store user msg
-  console.log('--- stored user msg ---');
   conversationMessages[conversation_id].push({ role: 'user', turn_id, content: userText });
+  console.log('--- stored user msg ---');
+  console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
 
   switch (type) {
     case 'session.update':
@@ -128,7 +178,7 @@ export const POST = async (request: Request) => {
         // stream.data({ message: `test data msg` });
         conversationMessages[conversation_id].push({ role: 'assistant', turn_id, content: WELCOME_MESSAGE });
         console.log('--- session.start received ---');
-        console.log(conversationMessages[conversation_id]);
+        console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
         stream.end();
       });
     case 'message':
@@ -142,10 +192,10 @@ export const POST = async (request: Request) => {
           if (matchingAssistantMsg) {
             conversationMessages[conversation_id].push({ role: 'assistant', turn_id, content: interruption_context.text_heard });
             console.log('--- added missing assistant msg ---');
-            console.log(conversationMessages[conversation_id]);
+            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
           } else {
             console.log('--- updating assisant msg with interruption_context.text_heard ---');
-            console.log(conversationMessages[conversation_id]);
+            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
           }
         } else {
           console.warn(`Could not find matching user msg with turn_id ${interruption_context.assistant_turn_id} to update with interrupted assistant response`);
@@ -180,7 +230,7 @@ export const POST = async (request: Request) => {
             console.log(response.messages);
             conversationMessages[conversation_id].push(...response.messages);
             console.log('--- onFinish final message history ---');
-            console.log(conversationMessages[conversation_id]);
+            console.log(prettyPrintMsgs(conversationMessages[conversation_id]));
             stream.end();
           }
         });

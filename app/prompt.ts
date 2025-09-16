@@ -17,6 +17,7 @@ Today's Date: ${new Date().toLocaleDateString()}
 7. Finally, use end_call tool to end the conversation
 
 # CRITICAL RULES
+- Always provide a response to the user when tool call results are received
 - NEVER skip steps in the conversation flow
 - Only book tours for qualified callers
 - Use information provided by the user in prior messages when using tools, to avoid asking the same questions again
